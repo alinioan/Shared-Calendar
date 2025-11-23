@@ -1,0 +1,98 @@
+\documentclass[a4paper,12pt]{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[romanian]{babel}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{graphicx}
+\usepackage{hyperref}
+\usepackage{geometry}
+\usepackage{float}
+\usepackage{booktabs}
+\usepackage{makecell}
+\geometry{margin=1in}
+
+\title{Platformă Distribuită pentru Organizarea Evenimentelor și Sincronizarea Calendarului de Grup}
+\author{Alexandru Alin-Ioan \\ \small{Grupa: 344C3}}
+\date{\today}
+
+\begin{document}
+
+\maketitle
+
+\tableofcontents
+
+\section{Introducere}
+
+  Această aplicție web propune o soluție pentru un calendar distribuit prin care
+  utilizatorii să poată crea, edita și sincroniza evenimente în cadrul unor
+  grupuri. Platforma va oferi funcționalitatea de gestionare a disponibilității
+  tutror participanților și de găsire automată de intrevale libere pentru
+  evenimentele planificate.
+
+\section{Obiectivele aplicației}
+
+  \begin{itemize}
+    \item Oferirea unui calendar multi-utilizator cu sincronizare în timp real.
+    \item Gestionarea disponibilității și a evenimentelor unui participant sau
+    unui grup.
+    \item Prevenirea conflictelor de rezervare prin mecanisme de distributed
+    locking.
+    \item Generarea de propuneri automate de meeting folosind procesare
+    asincronă și workeri replicați.
+    \item Implementarea unor mecanisme robuste de autentificare, autorizare și
+    management al rolurilor folosind Keycloak.
+    \item Livrarea proiectului sub forma unui set de servicii Docker.
+  \end{itemize}
+
+\section{Descrierea arhitecturii}
+
+  \subsection{Componente principale}
+    \begin{enumerate}
+      \item \textbf{Serviciul de autetificare (Keycloak)} -- Folosește OAuth2
+      și emite token-uri JWT.
+      \item \textbf{Serviciul de profil utilizatori} -- Preia informațile oferite
+      de Keycloak și creează profiluri locale în baza de date.
+      \item \textbf{Baza de date (PostgreSQL)} -- destinată managementului și
+      persistenței entităților și setărilor aplicației.
+      \item \textbf{Serviciul Calendar} -- expune un API pentru management de
+      grupuri, operații CRUD pentru evenimente, verificarea disponibilității.
+      \item \textbf{Serviciul Suggestion Worker (replicat)} -- preia joburi de
+      la broker și procesează în paralel cererile de găsire a unui interval
+      comun pentru un grup.
+      \item \textbf{Message Broker (RabbitMQ)} -- preia cererile de
+      procesare a unui interval de la serviciul calendar și le trimite către
+      workeri.
+      \item \textbf{Serviciul de locking distribuit (Redis)} -- gestionează 
+      mecanismele de \textit{distributed locking} necesare evitării conflictelor 
+      la nivel de interval orar prin algoritmul \textit{RedLock}.
+    \end{enumerate}
+
+  \subsection{Rețele și comunicare între microservicii}
+
+\section{Modulele aplicației}
+
+  \begin{enumerate}
+    \item \textbf{Autentificare} -- funcție de autorizare utilizând o tehnologie
+    de Single Sign-On (SSO).
+    \item \textbf{Profil utilizator + roluri} -- Keycloak pentru managementul
+    utilizatorilor, rolurilor și token-urilor.
+    \item \textbf{Baza de date} -- gestionată prin ORM.
+    \item \textbf{Conflict resolution + Distributed Locking} -- gestionează
+    situațiile concurente în care mai mulți utilizatori creează sau modifică
+    evenimente în același interval temporal.
+    \item \textbf{Suggestion Worker replicat} -- calculează automat intervalele comune
+    libere pentru un grup. Joburile sunt transmise de către serviciul Calendar
+    către broker, care mai apoi le redistribuie către workeri.
+  \end{enumerate}
+
+\section{Diagrama arhitecturii}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\textwidth]{img/architecture_diagram.png}
+    \caption{Arhitectura platformei de calendar distribuit}
+\end{figure}
+
+
+\end{document}
