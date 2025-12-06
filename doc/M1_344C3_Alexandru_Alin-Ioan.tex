@@ -45,31 +45,6 @@
     \item Livrarea proiectului sub forma unui set de servicii Docker.
   \end{itemize}
 
-\section{Descrierea arhitecturii}
-
-  \subsection{Componente principale}
-    \begin{enumerate}
-      \item \textbf{Serviciul de autetificare (Keycloak)} -- Folosește OAuth2
-      și emite token-uri JWT.
-      \item \textbf{Serviciul de profil utilizatori} -- Preia informațile oferite
-      de Keycloak și creează profiluri locale în baza de date.
-      \item \textbf{Baza de date (PostgreSQL)} -- destinată managementului și
-      persistenței entităților și setărilor aplicației.
-      \item \textbf{Serviciul Calendar} -- expune un API pentru management de
-      grupuri, operații CRUD pentru evenimente, verificarea disponibilității.
-      \item \textbf{Serviciul Suggestion Worker (replicat)} -- preia joburi de
-      la broker și procesează în paralel cererile de găsire a unui interval
-      comun pentru un grup.
-      \item \textbf{Message Broker (RabbitMQ)} -- preia cererile de
-      procesare a unui interval de la serviciul calendar și le trimite către
-      workeri.
-      \item \textbf{Serviciul de locking distribuit (Redis)} -- gestionează 
-      mecanismele de \textit{distributed locking} necesare evitării conflictelor 
-      la nivel de interval orar prin algoritmul \textit{RedLock}.
-    \end{enumerate}
-
-  \subsection{Rețele și comunicare între microservicii}
-
 \section{Modulele aplicației}
 
   \begin{enumerate}
@@ -85,6 +60,88 @@
     libere pentru un grup. Joburile sunt transmise de către serviciul Calendar
     către broker, care mai apoi le redistribuie către workeri.
   \end{enumerate}
+
+\section{Descrierea arhitecturii}
+
+  \subsection{Componente principale}
+    \subsubsection{Serviciul de autentificare (Keycloak)}
+      Folosește OAuth2 și emite token-uri JWT. Creează noi utilizatori, roluri
+      și trimit aceste informații către serviciul de profil utilizatori
+    \subsubsection{Serviciul de profil utilizatori}
+      Preia informațile oferite de Keycloak și creează profiluri locale în baza
+      de date. Se vor oferi 3 tipuri de utilizatori:
+      \begin{enumerate}
+        \item \textbf{Participant} -- Are acces la calendarul grupului și își poate
+        seta disponibiltatea.
+        \item \textbf{Organizer} -- Poate planifica evenimente în funcție de
+        disponibiltatea participanților din grup, să adauge sau să elimine
+        utilzatori din grup și să desemneze alți utilizatori ca organizatori.
+        \item \textbf{Admin} -- Are acces la toate utilitatile administrative
+        pentru alți utilizatori.
+      \end{enumerate}  
+    \subsubsection{Baza de date (PostgreSQL)}
+      Baza de date va fi prezntă în două instanțe cu roluri diferite: Prima
+      instanță va păstra informațile despre utilizatori și rolurile acestora,
+      iar cea de a doua va reține informații despre calendar, intervalele
+      ocpuate și evenimentele prezente.
+    \subsubsection{Serviciul Calendar - replicat}
+      Expune un API pentru managementul grupului, operații CRUD pentru
+      evenimente și verificarea disponibilității. Serviciul Calendar este
+      replicat pentru a gestiona un număr mare de cereri simultane. Deoarece
+      logica sa este stateless, iar mecanismele de sincronizare sunt gestionate
+      extern prin Redis (locking) și RabbitMQ (comunicare asincronă),
+      replicarea nu introduce probleme de consistență și îmbunătățește
+      disponibilitatea sistemului.
+    \subsubsection{Message Broker (RabbitMQ)}
+      Serviciu replicat care preia joburi de procesare de intrevale libere de
+      la serviciul calendar și le trimite către un set de workeri proprii.
+    \subsubsection{Serviciul Suggestion Worker - replicat}
+      Serviciul Suggestion Worker este un modul distribuit care efectuează
+      procesare paralelă asupra datelor din baza de date. Preia joburi de la
+      broker și procesează în paralel cererile de găsire a unui interval comun
+      pentru un grup. Un job conține informații unui grup și a unui interval
+      (câteva ore sau zile), iar răspunsul va fi o listă cu intervale de o oră
+      disponibile pentru toți membrii grupului în perioada specificată. Un
+      worker va prelua disponibilitatea fiecărui membru al grupului în
+      intervalul specificat de job și va realiza intersecția acestora pentru a
+      găsi posibile locuri libere.
+    \subsubsection{Serviciul de locking distribuit (Redis)}
+      Gestionează mecanismele de \textit{distributed locking} necesare evitării
+      conflictelor  la nivel de interval orar prin algoritmul \textit{RedLock}.
+      Mecanismul de locking distribuit este utilizat exclusiv de serviciul
+      Calendar pentru a proteja operațiile critice de scriere asupra
+      intervalelor orare și a preveni conflictele atunci când mai mulți
+      utilizatori sau instanțe ale API-ului încearcă să modifice simultan
+      aceleași date.
+
+  \subsection{Rețelele}
+    \subsubsection{Rețeaua \texttt{frontend-net}}
+      \begin{itemize}
+        \item Serviciul Calendar (replicat)
+        \item Serviciul de autentificare (Keycloak)
+      \end{itemize}
+
+    \subsubsection{Rețeaua \texttt{calendar-net}}
+      \begin{itemize}
+        \item Serviciul Calendar (replicat)
+        \item Message Broker (RabbitMQ)
+        \item Baza de date PostgreSQL (instanța pentru calendar)
+        \item Redis (locking distribuit)
+      \end{itemize}
+
+    \subsubsection{Rețeaua \texttt{profile-net}}
+      \begin{itemize}
+        \item Serviciul Calendar (replicat)
+        \item Serviciul de profil utilizatori
+        \item Baza de date PostgreSQL (instanța pentru profiluri)
+      \end{itemize}
+
+    \subsubsection{Rețeaua \texttt{worker-net}}
+      \begin{itemize}
+        \item Message Broker (RabbitMQ)
+        \item Suggestion Worker (replicat)
+        \item PostgreSQL (instanța pentru calendar)
+      \end{itemize}
 
 \section{Diagrama arhitecturii}
 
