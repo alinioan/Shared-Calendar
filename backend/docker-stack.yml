@@ -1,0 +1,114 @@
+version: "3.8"
+
+services:
+  postgres_users:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_DB: users_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres123
+    volumes:
+      - postgres_users_data:/var/lib/postgresql/data
+    networks:
+      - profile-net
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "postgres"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  postgres_calendar:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_DB: calendar_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres123
+    volumes:
+      - postgres_calendar_data:/var/lib/postgresql/data
+    networks:
+      - app-net
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "postgres"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  postgres_keycloak:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_DB: keycloak_db
+      POSTGRES_USER: keycloak
+      POSTGRES_PASSWORD: keycloak
+    volumes:
+      - postgres_keycloak_data:/var/lib/postgresql/data
+    networks:
+      - app-net
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "postgres"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:23.0
+    command: start-dev --import-realm
+    environment:
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: admin
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres_keycloak:5432/keycloak_db
+      KC_DB_USERNAME: keycloak
+      KC_DB_PASSWORD: keycloak
+    configs:
+      - source: keycloak-realm-config
+        target: /opt/keycloak/data/import/realm-config.json
+    ports:
+      - "8080:8080"
+    networks:
+      - app-net
+    depends_on:
+      - postgres_keycloak
+
+  profile:
+    image: profile_service_image
+    env_file: .env
+    ports:
+      - "5002:5000"
+    networks:
+      - app-net
+      - profile-net
+    depends_on:
+      - postgres_users
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+
+  calendar:
+    image: calendar_service_image
+    env_file: .env
+    ports:
+      - "5000:5000"
+    networks:
+      - app-net
+    depends_on:
+      - postgres_calendar
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+
+networks:
+  app-net:
+    driver: overlay
+  profile-net:
+    driver: overlay
+
+volumes:
+  postgres_users_data:
+  postgres_calendar_data:
+  postgres_keycloak_data:
+
+configs:
+  keycloak-realm-config:
+    external: true
