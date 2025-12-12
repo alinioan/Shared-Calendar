@@ -5,7 +5,8 @@ class GroupUser(db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
     group_id = db.Column(db.Integer, db.ForeignKey("group.id"), nullable=False)
-    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
+    email = db.Column(db.String(255), nullable=False)
+    user_id = db.Column(db.String(50), nullable=False, unique=True)
     role = db.Column(db.String(50), nullable=False)
     joined_date = db.Column(db.DateTime)
 

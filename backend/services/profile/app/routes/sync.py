@@ -10,6 +10,7 @@ sync_bp = Blueprint("sync", __name__)
 @jwt_required
 def sync_profile():
     user_data = g.user
+    print(user_data["roles"])
     
     user = User.query.filter_by(keycloak_id=user_data["keycloak_id"]).first()
 

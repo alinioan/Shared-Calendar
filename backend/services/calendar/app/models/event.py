@@ -9,7 +9,7 @@ class Event(db.Model):
     description = db.Column(db.String(1024))
     start_time = db.Column(db.DateTime, nullable=False)
     end_time = db.Column(db.DateTime, nullable=False)
-    created_by = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
+    created_by = db.Column(db.Integer, db.ForeignKey("group_user.id"), nullable=False)
     creation_date = db.Column(db.DateTime)
     last_update = db.Column(db.DateTime)
 

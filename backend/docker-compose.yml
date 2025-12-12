@@ -15,17 +15,27 @@ services:
       - "5432:5432"
 
   # # PostgreSQL Database for Calendar
-  # postgres_calendar:
-  #   image: postgres:15-alpine
-  #   container_name: postgres_calendar_db
-  #   environment:
-  #     POSTGRES_DB: calendar_db
-  #     POSTGRES_USER: postgres
-  #     POSTGRES_PASSWORD: postgres123
-  #   volumes:
-  #     - postgres_calendar_data:/var/lib/postgresql/data
-  #   ports:
-  #     - "5433:5432"
+  postgres_calendar:
+    image: postgres:15-alpine
+    container_name: postgres_calendar_db
+    environment:
+      POSTGRES_DB: calendar_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres123
+    volumes:
+      - postgres_calendar_data:/var/lib/postgresql/data
+    ports:
+      - "5433:5432"
+
+  postgres_keycloak:
+    image: postgres:15-alpine
+    container_name: postgres_keycloak_db
+    environment:
+      POSTGRES_DB: keycloak_db
+      POSTGRES_USER: keycloak
+      POSTGRES_PASSWORD: keycloak
+    volumes:
+      - postgres_keycloak_data:/var/lib/postgresql/data
 
   # Keycloak Authentication Server
   keycloak:
@@ -36,7 +46,7 @@ services:
       KEYCLOAK_ADMIN: admin
       KEYCLOAK_ADMIN_PASSWORD: admin
       KC_DB: postgres
-      KC_DB_URL: jdbc:postgresql://postgres_users:5432/users_db
+      KC_DB_URL: jdbc:postgresql://postgres_keycloak:5432/keycloak_db
       KC_DB_USERNAME: keycloak
       KC_DB_PASSWORD: keycloak
     volumes:
@@ -44,7 +54,23 @@ services:
     ports:
       - "8080:8080"
     depends_on:
-      - postgres_users
+      - postgres_keycloak
+
+  # Calendar Service
+  calendar:
+    build:
+      context: ./services/calendar
+      dockerfile: Dockerfile
+    container_name: calendar_service
+    env_file: ".env"
+    ports:
+      - "5000:5000"
+    depends_on:
+      - postgres_calendar
+      - keycloak
+    volumes:
+      - ./services/calendar:/app
+    command: python app.py
 
   # Profile Service
   profile:
@@ -65,3 +91,4 @@ services:
 volumes:
   postgres_users_data:
   postgres_calendar_data:
+  postgres_keycloak_data:

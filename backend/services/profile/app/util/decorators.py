@@ -22,8 +22,7 @@ def jwt_required(f):
                 token,
                 signing_key.key,
                 algorithms=["RS256"],
-                audience=current_app.config["KEYCLOAK_CLIENT_ID"],
-                options={"verify_exp": True}
+                options={"verify_aud": False}
             )
         except Exception as e:
             return jsonify({"error": str(e)}), 401

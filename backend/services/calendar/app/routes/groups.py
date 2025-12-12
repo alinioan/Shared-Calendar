@@ -2,13 +2,14 @@ import requests
 from datetime import datetime
 from flask import Blueprint, current_app, jsonify, g, request
 from ..utils.decorators import jwt_required, group_role_required
-from ..models import Group, GroupUser
+from ..models.group import Group
+from ..models.group_user import GroupUser
 from ..db import db
 
 groups_bp = Blueprint("groups", __name__)
 
 @groups_bp.post("/")
-@jwt_required()
+@jwt_required
 def add_group():
     data = request.get_json()
     name = data.get("name")
@@ -18,22 +19,27 @@ def add_group():
     group = Group(
         name=name,
         description=description,
-        owner_id=keycloak_user["keycloak_id"],
         creation_date=datetime.utcnow(),
         last_update=datetime.utcnow()
     )
     db.session.add(group)
     db.session.commit()
 
-    group_user = GroupUser(
-        group_id=group.id,
-        user_keycloak_id=keycloak_user["keycloak_id"],
-        role="organizer",
-        joined_date=datetime.utcnow()
-    )
+    existing = GroupUser.query.filter_by(
+        user_id=keycloak_user["keycloak_id"]
+    ).first()
 
-    db.session.add(group_user)
-    db.session.commit()
+    if not existing:
+        group_user = GroupUser(
+            group_id=group.id,
+            email=keycloak_user["email"],
+            user_id=keycloak_user["keycloak_id"],
+            role="organizer",
+            joined_date=datetime.utcnow()
+        )
+
+        db.session.add(group_user)
+        db.session.commit()
 
     return jsonify({"message": "Group created successfully",
                     "group": {
@@ -44,8 +50,14 @@ def add_group():
                         "last_update": group.last_update
                     }}), 201
 
+@groups_bp.get("/")
+@jwt_required
+def get_all_groups():
+    groups = Group.query.all()
+    return jsonify([group.to_dict() for group in groups]), 200
+
 @groups_bp.get("/<int:group_id>")
-@jwt_required()
+@jwt_required
 def get_group(group_id):
     group = Group.query.get(group_id)
     
@@ -53,16 +65,26 @@ def get_group(group_id):
         return jsonify({"error": "Group not found"}), 404
     
     return jsonify(group.to_dict()), 200
-    
+
+@groups_bp.get("/user/")
+@jwt_required
+def get_user_groups():
+    user_id = g.user["keycloak_id"]
+    group_users = GroupUser.query.filter_by(user_id=user_id).all()
+    group_ids = [gu.group_id for gu in group_users]
+    groups = Group.query.filter(Group.id.in_(group_ids)).all()
+    return jsonify([group.to_dict() for group in groups]), 200
 
 @groups_bp.delete("/<int:group_id>")
+@jwt_required
 @group_role_required("organizer")
-@jwt_required()
 def delete_group(group_id):
     group = Group.query.get(group_id)
     
     if not group:
         return jsonify({"error": "Group not found"}), 404
+
+    GroupUser.query.filter_by(group_id=group_id).delete(synchronize_session=False)
 
     db.session.delete(group)
     db.session.commit()
@@ -70,21 +92,25 @@ def delete_group(group_id):
     return jsonify({"message": "Group deleted successfully"}), 200
 
 @groups_bp.post("/<int:group_id>/users")
+@jwt_required
 @group_role_required("organizer")
-@jwt_required()
 def add_group_member(group_id):
     data = request.get_json()
-    target_user_id = data.get("user_id")
+    email = data.get("email")
 
-    if not target_user_id:
-        return jsonify({"error": "user_id is required"}), 400
+    if not email:
+        return jsonify({"error": "email is required"}), 400
 
-    profile_url = f"{current_app.config['PROFILE_SERVICE_URL']}/profile/{target_user_id}"
-    resp = requests.get(profile_url)
+    profile_url = f"{current_app.config['PROFILE_SERVICE_URL']}/profile/user"
+    send_data = {"email": email}
+    headers = {"Content-Type": "application/json", "Authorization": f"Bearer {request.headers.get('Authorization').split(' ')[1]}"}
+    resp = requests.get(profile_url, json=send_data, headers=headers)
 
+    print("Profile service response:", resp.status_code, resp.text)
     if resp.status_code != 200:
         return jsonify({"error": "User not found in Profile Service"}), 404
 
+    target_user_id = resp.json().get("keycloak_id")
     existing = GroupUser.query.filter_by(
         group_id=group_id,
         user_id=target_user_id
@@ -95,8 +121,10 @@ def add_group_member(group_id):
 
     new_member = GroupUser(
         group_id=group_id,
+        email=email,
         user_id=target_user_id,
-        role_in_group="member"
+        role="member",
+        joined_date=datetime.now()
     )
 
     db.session.add(new_member)
@@ -111,31 +139,33 @@ def add_group_member(group_id):
 
 
 @groups_bp.get("/<int:group_id>/users")
-@jwt_required()
+@jwt_required
 def get_group_members(group_id):
     members = GroupUser.query.filter_by(group_id=group_id).all()
     members_list = [member.to_dict() for member in members]
     return jsonify({"group_id": group_id, "members": members_list}), 200
 
 @groups_bp.delete("/<int:group_id>/users")
+@jwt_required
 @group_role_required("organizer")
-@jwt_required()
-def remove_group_member(group_id, user_id):
+def remove_group_member(group_id):
     data = request.get_json()
-    target_user_id = data.get("user_id")
+    email = data.get("email")
 
-    if not target_user_id:
-        return jsonify({"error": "user_id is required"}), 400
+    if not email:
+        return jsonify({"error": "email is required"}), 400
 
-    profile_url = f"{current_app.config['PROFILE_SERVICE_URL']}/profile/{target_user_id}"
-    resp = requests.get(profile_url)
+    profile_url = f"{current_app.config['PROFILE_SERVICE_URL']}/profile/user"
+    send_data = {"email": email}
+    headers = {"Content-Type": "application/json", "Authorization": f"Bearer {request.headers.get('Authorization').split(' ')[1]}"}
+    resp = requests.get(profile_url, json=send_data, headers=headers)
 
     if resp.status_code != 200:
         return jsonify({"error": "User not found in Profile Service"}), 404
 
     user = GroupUser.query.filter_by(
         group_id=group_id,
-        user_id=target_user_id
+        email=email
     ).first()
 
     db.session.delete(user)

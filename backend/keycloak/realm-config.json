@@ -2,7 +2,7 @@
   "realm": "calendar-realm",
   "enabled": true,
   "sslRequired": "external",
-  "registrationAllowed": false,
+  "registrationAllowed": true,
   "loginWithEmailAllowed": true,
   "duplicateEmailsAllowed": false,
   "resetPasswordAllowed": true,
@@ -12,7 +12,7 @@
   "roles": {
     "realm": [
       {
-        "name": "participant",
+        "name": "member",
         "description": "Can access group calendar and set availability"
       },
       {
@@ -33,20 +33,75 @@
       "description": "Backend service for calendar platform",
       "enabled": true,
       "publicClient": true,
-      "redirectUris": [
-        "http://localhost:5000/*",
-        "http://profile-service:5000/*"
-      ],
-      "webOrigins": [
-        "http://localhost:5000",
-        "http://localhost:3000"
-      ],
       "protocol": "openid-connect",
       "standardFlowEnabled": true,
       "implicitFlowEnabled": false,
       "directAccessGrantsEnabled": true
     }
   ],
+  "users": [
+    {
+      "username": "alice",
+      "enabled": true,
+      "email": "alice@example.com",
+      "firstName": "Alice",
+      "lastName": "A",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "alice123",
+          "temporary": false
+        }
+      ],
+      "realmRoles": ["member"]
+    },
+    {
+      "username": "bob",
+      "enabled": true,
+      "email": "bob@example.com",
+      "firstName": "Bob",
+      "lastName": "B",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "bob123",
+          "temporary": false
+        }
+      ],
+      "realmRoles": ["member"]
+    },
+    {
+      "username": "ceo",
+      "enabled": true,
+      "email": "ceo@example.com",
+      "firstName": "Ceo",
+      "lastName": "C",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "ceo123",
+          "temporary": false
+        }
+      ],
+      "realmRoles": ["organizer"]
+    },
+    {
+      "username": "alin",
+      "enabled": true,
+      "email": "alin@example.com",
+      "firstName": "Alin",
+      "lastName": "A",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "alin123",
+          "temporary": false
+        }
+      ],
+      "realmRoles": ["admin"]
+    }
+  ],
+
   
   "defaultRoles": ["participant"]
 }

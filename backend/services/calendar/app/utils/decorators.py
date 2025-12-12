@@ -25,12 +25,12 @@ def jwt_required(f):
                 token,
                 signing_key.key,
                 algorithms=["RS256"],
-                audience=current_app.config["KEYCLOAK_CLIENT_ID"],
-                options={"verify_exp": True}
+                options={"verify_aud": False}
             )
         except Exception as e:
             return jsonify({"error": str(e)}), 401
 
+        print("Decoded JWT payload:", payload)
         g.user = {
             "keycloak_id": payload.get("sub"),
             "email": payload.get("email"),
@@ -39,7 +39,7 @@ def jwt_required(f):
         }
 
         try:
-            sync_url = f"{current_app.config['PROFILE_SERVICE_URL']}/profile/sync"
+            sync_url = f"{current_app.config['PROFILE_SERVICE_URL']}/sync"
             sync_headers = {"Authorization": f"Bearer {token}"}
             sync_resp = requests.post(sync_url, headers=sync_headers)
 
@@ -74,7 +74,7 @@ def group_role_required(required_role):
             if not membership:
                 return jsonify({"error": "User is not a member of this group"}), 403
 
-            if membership.role_in_group != required_role:
+            if membership.role != required_role:
                 return jsonify({
                     "error": f"User must have role '{required_role}' for this action"
                 }), 403
