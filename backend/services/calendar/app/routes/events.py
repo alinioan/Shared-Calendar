@@ -12,6 +12,7 @@ from ..db import db
 import pika
 import json
 import uuid
+import time
 
 events_bp = Blueprint("events", __name__)
 
@@ -130,8 +131,30 @@ def make_recommendation_request(group_id):
         "end_time": end_time
     }
 
-    publish_suggestion_job(job)
+    lock_key = f"group:{group_id}:recommendation_lock"
+    lock_id = acquire_lock(current_app.redis_client, lock_key, timeout=5000)
     
+    if not lock_id:
+        max_wait = 10.0  # seconds
+        wait = 0.1
+        elapsed = 0.0
+
+        while elapsed < max_wait:
+            time.sleep(wait)
+            elapsed += wait
+            lock_id = acquire_lock(current_app.redis_client, lock_key, timeout=5000)
+            if lock_id:
+                break
+            wait = min(wait * 2, 2.0)
+
+        if not lock_id:
+            return jsonify({"error": "Calendar is busy, try again"}), 409
+    
+    try:
+        publish_suggestion_job(job)
+    finally:
+        release_lock(current_app.redis_client, lock_key, lock_id)
+
     return jsonify({
             "job_id": job["job_id"],
             "status": "submitted"
@@ -146,15 +169,15 @@ def get_interval_recommendations(group_id, job_id):
     ).first()
 
     if not job:
-        return jsonify("error: No job with this id exists"), 404
+        return jsonify({"error": "No job with this id exists"}), 404
     
     if job.status == "PENDING":
-        return jsonify("Job pending"), 202
+        return jsonify({"error": "Job pending"}), 202
     
     intervals = Interval.query.filter_by(job_id = job.id).all()
 
     if not intervals:
-        return jsonify("No intervals found"), 404
+        return jsonify({"error": "No intervals found"}), 404
     
     return jsonify({
         "intervals": [interval.to_dict() for interval in intervals],

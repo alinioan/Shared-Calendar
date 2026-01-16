@@ -1,4 +1,5 @@
 import os
+from socket import socket
 import pika
 import json
 from datetime import timedelta, datetime
@@ -90,8 +91,10 @@ def process_intervals(ch, method, properties, body):
     intervals = merge_intervals(intervals)
     free = free_intervals(intervals, start_time, end_time)
 
+    intervals_cnt = 0
     for start, end in free:
         while start + duration <= end:
+            intervals_cnt += 1
             job_result = Interval(
                 job_id=job["job_id"],
                 start_time=start,
@@ -109,7 +112,7 @@ def process_intervals(ch, method, properties, body):
     
     session.commit()
 
-    print(f"Job {job_record.id} DONE, found intervals: {len(free)}")
+    print(f"Job {job_record.id} DONE, found intervals: {intervals_cnt}")
 
     ch.basic_ack(delivery_tag=method.delivery_tag)
 
@@ -122,7 +125,7 @@ def _wait_for_rabbitmq(retries=10, delay=3):
             )
             print("RabbtiMQ connected.")
             return connection
-        except pika.exceptions.AMQPConnectionError as e:
+        except Exception as e:
             print(f"RabbitMQ connection failed (attempt {attempt + 1}/{retries}): {e}")
             time.sleep(delay)
 
