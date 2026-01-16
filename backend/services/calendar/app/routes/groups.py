@@ -25,21 +25,16 @@ def add_group():
     db.session.add(group)
     db.session.commit()
 
-    existing = GroupUser.query.filter_by(
-        user_id=keycloak_user["keycloak_id"]
-    ).first()
+    group_user = GroupUser(
+        group_id=group.id,
+        email=keycloak_user["email"],
+        user_id=keycloak_user["keycloak_id"],
+        role="organizer",
+        joined_date=datetime.utcnow()
+    )
 
-    if not existing:
-        group_user = GroupUser(
-            group_id=group.id,
-            email=keycloak_user["email"],
-            user_id=keycloak_user["keycloak_id"],
-            role="organizer",
-            joined_date=datetime.utcnow()
-        )
-
-        db.session.add(group_user)
-        db.session.commit()
+    db.session.add(group_user)
+    db.session.commit()
 
     return jsonify({"message": "Group created successfully",
                     "group": {
@@ -137,6 +132,71 @@ def add_group_member(group_id):
         "role": "member"
     }), 201
 
+@groups_bp.put("/<int:group_id>/users/organizer")
+@jwt_required
+@group_role_required("organizer")
+def set_organizer(group_id):
+    data = request.get_json()
+    email = data.get("email")
+
+    profile_url = f"{current_app.config['PROFILE_SERVICE_URL']}/profile/user"
+    send_data = {"email": email}
+    headers = {"Content-Type": "application/json", "Authorization": f"Bearer {request.headers.get('Authorization').split(' ')[1]}"}
+    resp = requests.get(profile_url, json=send_data, headers=headers)
+
+    if resp.status_code != 200:
+        return jsonify({"error": "User not found in Profile Service"}), 404
+
+    user = GroupUser.query.filter_by(
+        group_id=group_id,
+        email=email
+    ).first()
+
+    if not user:
+        return jsonify({"error": "User not found in group"}), 404
+
+    user.role = "organizer"
+    db.session.commit()
+
+    return jsonify({
+        "message": "User role changed successfully",
+        "group_id": group_id,
+        "user_id": user.user_id,
+        "role": user.role
+    }), 200
+
+@groups_bp.put("/<int:group_id>/users/member")
+@jwt_required
+@group_role_required("organizer")
+def set_member(group_id):
+    data = request.get_json()
+    email = data.get("email")
+
+    profile_url = f"{current_app.config['PROFILE_SERVICE_URL']}/profile/user"
+    send_data = {"email": email}
+    headers = {"Content-Type": "application/json", "Authorization": f"Bearer {request.headers.get('Authorization').split(' ')[1]}"}
+    resp = requests.get(profile_url, json=send_data, headers=headers)
+
+    if resp.status_code != 200:
+        return jsonify({"error": "User not found in Profile Service"}), 404
+
+    user = GroupUser.query.filter_by(
+        group_id=group_id,
+        email=email
+    ).first()
+
+    if not user:
+        return jsonify({"error": "User not found in group"}), 404
+
+    user.role = "member"
+    db.session.commit()
+
+    return jsonify({
+        "message": "User role changed successfully",
+        "group_id": group_id,
+        "user_id": user.user_id,
+        "role": user.role
+    }), 200
 
 @groups_bp.get("/<int:group_id>/users")
 @jwt_required

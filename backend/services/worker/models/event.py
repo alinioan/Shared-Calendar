@@ -1,6 +1,9 @@
-from ..db import db
+import sqlalchemy as db
+from sqlalchemy.ext.declarative import declarative_base
 
-class Event(db.Model):
+base = declarative_base()
+
+class Event(base):
     __tablename__ = "event"
 
     id = db.Column(db.Integer, primary_key=True)

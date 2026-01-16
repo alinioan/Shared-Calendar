@@ -8,3 +8,6 @@ class Config:
     KEYCLOAK_CLIENT_ID = os.getenv("KEYCLOAK_CLIENT_ID")
 
     PROFILE_SERVICE_URL = os.getenv("PROFILE_SERVICE_URL")
+    REDIS_NODES = os.getenv("REDIS_NODES")
+
+    RABBITMQ_URL = os.getenv("RABBITMQ_URL")

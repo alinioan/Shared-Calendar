@@ -56,6 +56,24 @@ services:
     depends_on:
       - postgres_keycloak
 
+  # Redis for locking mechanism
+  redis:
+    image: redis:7-alpine
+    container_name: redis
+    ports:
+      - "6379:6379"
+
+  # RabbitMQ for messaging
+  rabbitmq:
+    image: rabbitmq:3.12-management
+    container_name: rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    ports:
+      - "5672:5672"    # AMQP
+      - "15672:15672"  # Management UI
+
   # Calendar Service
   calendar:
     build:
@@ -87,6 +105,17 @@ services:
     volumes:
       - ./services/profile:/app
     command: python app.py
+
+  # Suggestion Worker Service
+  suggestion_worker:
+    build:
+      context: ./services/worker
+    env_file: ".env"
+    environment:
+      PYTHONUNBUFFERED: "1"
+    depends_on:
+      - rabbitmq
+      - postgres_calendar
 
 volumes:
   postgres_users_data:

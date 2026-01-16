@@ -1,6 +1,9 @@
-from ..db import db
+import sqlalchemy as db
+from sqlalchemy.ext.declarative import declarative_base
 
-class GroupUser(db.Model):
+base = declarative_base()
+
+class GroupUser(base):
     __tablename__ = "group_user"
 
     id = db.Column(db.Integer, primary_key=True)

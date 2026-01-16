@@ -8,6 +8,7 @@ echo "Building docker images..."
 
 docker build -t calendar_service_image ./services/calendar
 docker build -t profile_service_image ./services/profile
+docker build -t worker_service_image ./services/worker
 
 echo "Finised building images."
 

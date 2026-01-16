@@ -27,6 +27,7 @@ services:
       - postgres_calendar_data:/var/lib/postgresql/data
     networks:
       - app-net
+      - worker-net
     healthcheck:
       test: ["CMD", "pg_isready", "-U", "postgres"]
       interval: 5s
@@ -69,6 +70,33 @@ services:
     depends_on:
       - postgres_keycloak
 
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    networks:
+      - app-net
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+  
+  rabbitmq:
+    image: rabbitmq:3.12-management
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    networks:
+      - app-net
+      - worker-net
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+
   profile:
     image: profile_service_image
     env_file: .env
@@ -94,7 +122,19 @@ services:
     depends_on:
       - postgres_calendar
     deploy:
-      replicas: 1
+      replicas: 3
+      restart_policy:
+        condition: on-failure
+  
+  suggestion_worker:
+    image: worker_service_image
+    env_file: .env
+    environment:
+      PYTHONUNBUFFERED: "1"
+    networks:
+      - worker-net
+    deploy:
+      replicas: 3
       restart_policy:
         condition: on-failure
 
@@ -102,6 +142,8 @@ networks:
   app-net:
     driver: overlay
   profile-net:
+    driver: overlay
+  worker-net:
     driver: overlay
 
 volumes:
